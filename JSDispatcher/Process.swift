@@ -10,7 +10,6 @@ import Cocoa
 
 class Process: NSObject {
     // process control block
-    var processNumber: Int!
     var programCounter: Int!
     var registers: [Int] = []
     

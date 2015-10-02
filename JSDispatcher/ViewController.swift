@@ -8,13 +8,29 @@
 
 import Cocoa
 
+struct ManagedProcess {
+    var PID: Int
+    var process: Process
+    var priority: Int
+    
+    init(nPID: Int, nProcess: Process, nPriority: Int) {
+        PID = nPID
+        process = nProcess
+        priority = nPriority
+    }
+}
+
 class ViewController: NSViewController {
     
-    var currentProcess: Process!
-    var readyList: [(process: Process, priority: Int)] = []
-    var blockedList: [(process: Process, priority: Int)] = []
+    @IBOutlet weak var processTableView: NSTableView!
     
-    @IBOutlet var newProcessName: NSTextField!
+    var currentProcess: ManagedProcess!
+    var readyList = [Int: ManagedProcess]()
+    var blockedList = [Int: ManagedProcess]()
+    var tableData = [ManagedProcess]()
+    var randomNumber = [Int](0...100)
+    var highestPID = 100
+    
     @IBOutlet var newProcessPriority: NSTextField!
     
     override func viewDidLoad() {
@@ -23,84 +39,214 @@ class ViewController: NSViewController {
         
         // initialize processes
         let p1 =  Process()
-        p1.processNumber = 1
         let p2 =  Process()
-        p2.processNumber = 2
         let p3 =  Process()
-        p3.processNumber = 3
         let p4 =  Process()
-        p4.processNumber = 4
         let p5 =  Process()
-        p5.processNumber = 5
+        
+        generateRandomPIDs(randomNumber)
         
         // add to ready list and assign priorities
-        readyList.append((p1, 9))
-        readyList.append((p2, 3))
-        readyList.append((p3, 7))
-        readyList.append((p4, 11))
-        readyList.append((p5, 6))
+        makeNewProcess(p1)
+        makeNewProcess(p2)
+        makeNewProcess(p3)
+        makeNewProcess(p4)
         
-        // start the most important process
-        contextSwitchNext()
+        // choose the first process
+        currentProcess = ManagedProcess(nPID: getPID(), nProcess: p5, nPriority: Int(rand() % 50))
+        
+        refreshTableData()
         
     }
 
-    // MARK: - Process Dispatcher
+    // MARK: - PID Generation
     
-    @IBAction func makeNewProcess(sender: NSButton) {
+    func getPID() -> Int {
+        if randomNumber.count == 0 {
+            randomNumber = [Int]((highestPID + 1)...(highestPID + 100))
+            generateRandomPIDs(randomNumber)
+            highestPID += 100
+        }
+        let num  = randomNumber.popLast()!
+        print(num)
+        return num
+    }
+    
+    func generateRandomPIDs(seedList: [Int]) -> [Int] {
+        return shuffle(seedList)
+    }
+    
+    func shuffle<C: MutableCollectionType where C.Index == Int>(var list: C) -> C {
+        let c = list.count
+        if c < 2 { return list }
+        for i in 0..<(c - 1) {
+            let j = Int(arc4random_uniform(UInt32(c - i))) + i
+            if i != j {swap(&list[i], &list[j])}
+        }
+        return list
+    }
+    
+    func refreshTableData() {
+        self.tableData.removeAll()
+        
+        for p1 in readyList {
+            tableData.append(p1.1)
+        }
+        
+        for p2 in blockedList {
+            tableData.append(p2.1)
+        }
+        
+        processTableView.reloadData()
         
     }
     
+    // MARK: - Process Dispatcher
     
+    func makeNewProcess(process: Process) {
+        let newPID = getPID()
+        readyList[newPID] = ManagedProcess(nPID: newPID, nProcess: process, nPriority: Int(rand() % 50))
+    }
     
     func contextSwitchNext() {
         if readyList.count > 0 {
-            var max = readyList[0].priority
-            var maxIndex = 0
-            for i in 1...(readyList.count - 1) {
-                if readyList[i].priority > max {
-                    max = readyList[0].priority
-                    maxIndex = i
+            var max = 0
+            blockedList[currentProcess.PID] = currentProcess
+            
+            for (PID, currProcess) in readyList {
+                if currProcess.priority > max {
+                    max = currProcess.priority
+                    currentProcess = currProcess
                 }
             }
             
-            currentProcess = readyList[maxIndex].process
-            readyList.removeAtIndex(maxIndex)
+            readyList[currentProcess.PID] = nil
+            refreshTableData()
+            
         } else {
-            print("no processes to run")
+            currentProcess = nil
+            
+            let myPopup: NSAlert = NSAlert()
+            myPopup.messageText = "No Proceses Available to Run"
+            myPopup.informativeText = "Move some processes to the ready list"
+            myPopup.alertStyle = NSAlertStyle.WarningAlertStyle
+            myPopup.addButtonWithTitle("OK")
+            myPopup.addButtonWithTitle("Cancel")
+            myPopup.runModal()
         }
     }
+}
 
+// MARK: - ControlCellViewDelegate
+extension ViewController: ControlCellViewDelegate {
+    func readyProcess(var process: ManagedProcess) {
+        process.priority = Int(rand() % 50)
+        readyList[process.PID] = process
+        blockedList[process.PID] = nil
+        
+        //contextSwitchNext()
+        refreshTableData()
+    }
+    
+    func blockProcess(var process: ManagedProcess) {
+        if process.PID == currentProcess.PID {
+            contextSwitchNext()
+        }
+
+        readyList[process.PID] = nil
+        process.priority = Int(rand() % 50)
+        blockedList[process.PID] = process
+        
+        refreshTableData()
+    }
+    
+    func deleteProcess(process: ManagedProcess) {
+        if process.PID == currentProcess.PID {
+            if readyList.count == 0 {
+                currentProcess = nil
+            } else {
+                contextSwitchNext()
+            }
+        } else {
+            readyList[process.PID] = nil
+            blockedList[process.PID] = nil
+            contextSwitchNext()
+        }
+        
+        refreshTableData()
+    }
 }
 
 // MARK: - NSTableViewDataSource
 extension ViewController: NSTableViewDataSource {
     func numberOfRowsInTableView(aTableView: NSTableView) -> Int {
-        return readyList.count + blockedList.count + 1
+        if currentProcess == nil {
+            return tableData.count
+        } else {
+            return tableData.count + 1
+        }
+    }
+    
+    func tableView(tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        return 27
     }
     
     func tableView(tableView: NSTableView, viewForTableColumn tableColumn: NSTableColumn?, row: Int) -> NSView? {
 
         let cellView: NSTableCellView = tableView.makeViewWithIdentifier(tableColumn!.identifier, owner: self) as! NSTableCellView
-        
-        let currentArray = readyList + blockedList
-        
-        if tableColumn!.identifier == "PID" {
-            if row == 0 {
-                cellView.textField!.stringValue = String(currentProcess.processNumber)
-            } else {
-                cellView.textField!.stringValue = String(currentArray[row - 1].process.processNumber)
+        if currentProcess != nil {
+            if tableColumn!.identifier == "PID" {
+                if row == 0 {
+                    cellView.textField!.stringValue = String(currentProcess.PID)
+                } else {
+                    cellView.textField!.stringValue = String(tableData[row - 1].PID)
+                }
+            } else if tableColumn!.identifier == "Status" {
+                if row == 0 {
+                    cellView.textField!.stringValue = "Current Process"
+                } else if row <= readyList.count {
+                    cellView.textField!.stringValue = "Ready"
+                } else if row > readyList.count {
+                    cellView.textField!.stringValue = "Blocked"
+                }
+            } else if tableColumn!.identifier == "Control" {
+                let controlCellView: ControlCellView = tableView.makeViewWithIdentifier(tableColumn!.identifier, owner: self) as! ControlCellView
+                controlCellView.delegate = self
+                if row == 0 {
+                    controlCellView.cellProcess = currentProcess
+                    controlCellView.segmentedControl.selectedSegment = -1
+                } else if row <= readyList.count {
+                    controlCellView.segmentedControl.selectedSegment = 0
+                    controlCellView.cellProcess = tableData[row - 1]
+                } else if row > readyList.count {
+                    controlCellView.segmentedControl.selectedSegment = 1
+                    controlCellView.cellProcess = tableData[row - 1]
+                }
+                
+                return controlCellView
             }
-        } else if tableColumn!.identifier == "Status" {
-            if row == 0 {
-                cellView.textField!.stringValue = "Current Process"
-            } else if row - 1 < readyList.count {
-                cellView.textField!.stringValue = "Ready"
-            } else if row - 1 >= readyList.count && row - 1 < blockedList.count {
-                cellView.textField!.stringValue = "Blocked"
+        } else {
+            if tableColumn!.identifier == "PID" {
+                cellView.textField!.stringValue = String(tableData[row].PID)
+            } else if tableColumn!.identifier == "Status" {
+                if row <= readyList.count {
+                    cellView.textField!.stringValue = "Ready"
+                } else if row > readyList.count {
+                    cellView.textField!.stringValue = "Blocked"
+                }
+            } else if tableColumn!.identifier == "Control" {
+                let controlCellView: ControlCellView = tableView.makeViewWithIdentifier(tableColumn!.identifier, owner: self) as! ControlCellView
+                controlCellView.delegate = self
+                if row <= readyList.count {
+                    controlCellView.segmentedControl.selectedSegment = 0
+                    controlCellView.cellProcess = tableData[row]
+                } else if row > readyList.count {
+                    controlCellView.segmentedControl.selectedSegment = 1
+                    controlCellView.cellProcess = tableData[row]
+                }
+                
+                return controlCellView
             }
-        } else if tableColumn!.identifier == "Control" {
-
         }
         
         return cellView

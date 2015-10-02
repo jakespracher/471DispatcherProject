@@ -37,7 +37,11 @@ class ViewController: NSViewController {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
         
-        // initialize processes
+        initializeProcesses()
+        
+    }
+    
+    func initializeProcesses() {
         let p1 =  Process()
         let p2 =  Process()
         let p3 =  Process()
@@ -56,9 +60,36 @@ class ViewController: NSViewController {
         currentProcess = ManagedProcess(nPID: getPID(), nProcess: p5, nPriority: Int(rand() % 50))
         
         refreshTableData()
+    }
+    
+    // MARK: - UI Actions
+    
+    @IBAction func reset(sender: NSButton) {
+        readyList.removeAll()
+        blockedList.removeAll()
+        currentProcess = nil
+
+        initializeProcesses()
         
     }
-
+    
+    @IBAction func killAll(sender: NSButton) {
+        readyList.removeAll()
+        blockedList.removeAll()
+        currentProcess = nil
+        refreshTableData()
+    }
+    
+    @IBAction func newProcess(sender: NSButton) {
+        let process = Process()
+        let newPID = getPID()
+        
+        readyList[newPID] = ManagedProcess(nPID: newPID, nProcess: process, nPriority: newProcessPriority.integerValue)
+        refreshTableData()
+        
+        newProcessPriority.stringValue = ""
+    }
+    
     // MARK: - PID Generation
     
     func getPID() -> Int {
@@ -111,7 +142,10 @@ class ViewController: NSViewController {
     func contextSwitchNext() {
         if readyList.count > 0 {
             var max = 0
-            blockedList[currentProcess.PID] = currentProcess
+            
+            if currentProcess != nil {
+                blockedList[currentProcess.PID] = currentProcess
+            }
             
             for (PID, currProcess) in readyList {
                 if currProcess.priority > max {
@@ -144,7 +178,6 @@ extension ViewController: ControlCellViewDelegate {
         readyList[process.PID] = process
         blockedList[process.PID] = nil
         
-        //contextSwitchNext()
         refreshTableData()
     }
     
@@ -162,17 +195,13 @@ extension ViewController: ControlCellViewDelegate {
     
     func deleteProcess(process: ManagedProcess) {
         if process.PID == currentProcess.PID {
-            if readyList.count == 0 {
                 currentProcess = nil
-            } else {
-                contextSwitchNext()
-            }
         } else {
             readyList[process.PID] = nil
             blockedList[process.PID] = nil
-            contextSwitchNext()
         }
         
+        contextSwitchNext()
         refreshTableData()
     }
 }
@@ -209,6 +238,15 @@ extension ViewController: NSTableViewDataSource {
                 } else if row > readyList.count {
                     cellView.textField!.stringValue = "Blocked"
                 }
+            } else if tableColumn!.identifier == "Priority" {
+                if row == 0 {
+                    cellView.textField!.stringValue = "N/A"
+                } else if row <= readyList.count {
+                    cellView.textField!.stringValue = String(tableData[row - 1].priority)
+                } else if row > readyList.count {
+                    cellView.textField!.stringValue = "-1"
+                }
+                
             } else if tableColumn!.identifier == "Control" {
                 let controlCellView: ControlCellView = tableView.makeViewWithIdentifier(tableColumn!.identifier, owner: self) as! ControlCellView
                 controlCellView.delegate = self
@@ -233,6 +271,12 @@ extension ViewController: NSTableViewDataSource {
                     cellView.textField!.stringValue = "Ready"
                 } else if row > readyList.count {
                     cellView.textField!.stringValue = "Blocked"
+                }
+            } else if tableColumn!.identifier == "Priority" {
+                if row <= readyList.count {
+                    cellView.textField!.stringValue = String(tableData[row].priority)
+                } else if row > readyList.count {
+                    cellView.textField!.stringValue = "-1"
                 }
             } else if tableColumn!.identifier == "Control" {
                 let controlCellView: ControlCellView = tableView.makeViewWithIdentifier(tableColumn!.identifier, owner: self) as! ControlCellView

@@ -5,6 +5,8 @@ First assignment in CS 471 Operating Systems
 
 SimDispatcher is a GUI application that simulates an operating system dispatcher.
 
+![Demo](https://cloud.githubusercontent.com/assets/7165897/10260063/1f581800-693e-11e5-97cb-40358c051d60.png)
+
 ## Video Demonstration
 https://youtu.be/Kn1yFMrGfRI
 

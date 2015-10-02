@@ -104,17 +104,7 @@ class ViewController: NSViewController {
     }
     
     func generateRandomPIDs(seedList: [Int]) -> [Int] {
-        return shuffle(seedList)
-    }
-    
-    func shuffle<C: MutableCollectionType where C.Index == Int>(var list: C) -> C {
-        let c = list.count
-        if c < 2 { return list }
-        for i in 0..<(c - 1) {
-            let j = Int(arc4random_uniform(UInt32(c - i))) + i
-            if i != j {swap(&list[i], &list[j])}
-        }
-        return list
+        return seedList.shuffle()
     }
     
     func refreshTableData() {
@@ -178,11 +168,15 @@ extension ViewController: ControlCellViewDelegate {
         readyList[process.PID] = process
         blockedList[process.PID] = nil
         
+        if currentProcess == nil {
+            contextSwitchNext()
+        }
+        
         refreshTableData()
     }
     
     func blockProcess(var process: ManagedProcess) {
-        if process.PID == currentProcess.PID {
+        if currentProcess != nil && process.PID == currentProcess.PID {
             contextSwitchNext()
         }
 
@@ -267,24 +261,24 @@ extension ViewController: NSTableViewDataSource {
             if tableColumn!.identifier == "PID" {
                 cellView.textField!.stringValue = String(tableData[row].PID)
             } else if tableColumn!.identifier == "Status" {
-                if row <= readyList.count {
+                if row < readyList.count {
                     cellView.textField!.stringValue = "Ready"
-                } else if row > readyList.count {
+                } else if row >= readyList.count {
                     cellView.textField!.stringValue = "Blocked"
                 }
             } else if tableColumn!.identifier == "Priority" {
-                if row <= readyList.count {
+                if row < readyList.count {
                     cellView.textField!.stringValue = String(tableData[row].priority)
-                } else if row > readyList.count {
+                } else if row >= readyList.count {
                     cellView.textField!.stringValue = "-1"
                 }
             } else if tableColumn!.identifier == "Control" {
                 let controlCellView: ControlCellView = tableView.makeViewWithIdentifier(tableColumn!.identifier, owner: self) as! ControlCellView
                 controlCellView.delegate = self
-                if row <= readyList.count {
+                if row < readyList.count {
                     controlCellView.segmentedControl.selectedSegment = 0
                     controlCellView.cellProcess = tableData[row]
-                } else if row > readyList.count {
+                } else if row >= readyList.count {
                     controlCellView.segmentedControl.selectedSegment = 1
                     controlCellView.cellProcess = tableData[row]
                 }
@@ -301,4 +295,29 @@ extension ViewController: NSTableViewDataSource {
 extension ViewController: NSTableViewDelegate {
     
     
+}
+
+// MARK: - Fisher Yates Shuffling
+
+extension CollectionType where Index == Int {
+    /// Return a copy of `self` with its elements shuffled
+    func shuffle() -> [Generator.Element] {
+        var list = Array(self)
+        list.shuffleInPlace()
+        return list
+    }
+}
+
+extension MutableCollectionType where Index == Int {
+    /// Shuffle the elements of `self` in-place.
+    mutating func shuffleInPlace() {
+        // empty and single-element collections don't shuffle
+        if count < 2 { return }
+        
+        for i in 0..<count - 1 {
+            let j = Int(arc4random_uniform(UInt32(count - i))) + i
+            guard i != j else { continue }
+            swap(&self[i], &self[j])
+        }
+    }
 }

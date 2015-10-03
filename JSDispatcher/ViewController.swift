@@ -164,6 +164,11 @@ class ViewController: NSViewController {
 // MARK: - ControlCellViewDelegate
 extension ViewController: ControlCellViewDelegate {
     func readyProcess(var process: ManagedProcess) {
+        if currentProcess != nil && currentProcess.PID == process.PID {
+            contextSwitchNext()
+            return
+        }
+        
         process.priority = Int(rand() % 50)
         readyList[process.PID] = process
         blockedList[process.PID] = nil
